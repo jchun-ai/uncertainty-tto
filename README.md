@@ -83,14 +83,14 @@ RUN python3 -m pip install --no-cache-dir -r monai_requirements.txt
 
 ```
 .
-├── ! history/                                        # Auto-generated log and output 
-├── 3d_segmentation/                                  # Core training/inference scripts
+├── ! history/                          # Auto-generated log and output 
+├── 3d_segmentation/                    # Core training/inference scripts
 │   ├── swin_unetr_btcv_segmentation_3d_singleCh.py
 │   ├── swin_unetr_btcv_segmentation_3d_singleCh_test.py
 │   └── swin_unetr_btcv_segmentation_3d_singleCh.ipynb    # Jupyter development notebook
-├── monai_requirements.txt                            # Dependency list for pip
-├── monai_Dockerfile                                  # Dockerfile (based on PyTorch 2.1.1 + CUDA 12.1)
-└── README.md                                         # Project documentation
+├── requirements.txt                    # Dependency list for pip
+├── Dockerfile_uncertainty_tto          # Dockerfile (based on PyTorch 2.1.1 + CUDA 12.1)
+└── README.md                           
 directory per experiment
 
 ```
@@ -99,7 +99,7 @@ directory per experiment
 
 - `3d_segmentation/`: Contains task-specific scripts for training and inference (single channel segmentation)
 - `swin_unetr_btcv_segmentation_3d_singleCh.ipynb`: Used for quick prototyping and debugging
-- `monai_Dockerfile`: Builds the MONAI runtime environment on top of `pytorch:2.1.1-cuda12.1-cudnn8-devel`
+- `Dockerfile_uncertainty_tto`: Builds the MONAI runtime environment on top of `pytorch:2.1.1-cuda12.1-cudnn8-devel`
 
 ---
 ### 🧪 Dataset References 
