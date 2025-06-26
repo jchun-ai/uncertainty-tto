@@ -1,0 +1,13 @@
+# Set baseline image
+# FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
+FROM pytorch/pytorch:2.1.1-cuda12.1-cudnn8-devel
+
+# Set the working directory
+WORKDIR /Morfeus/JChun
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY monai_requirements.txt /Morfeus/JChun
+
+RUN python3 -m pip install --no-cache-dir --upgrade --pre pip
+RUN python3 -m pip install --no-cache-dir -r monai_requirements.txt
