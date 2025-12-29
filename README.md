@@ -1,289 +1,178 @@
-# 📌 1. Project Overview
+# 🧠 Uncertainty-Guided Test-Time Optimization (TTO)
+### Personalizing Segmentation Models in Longitudinal Medical Imaging
 
-This project aims to develop and maintain a robust AI-based segmentation framework for adaptive radiotherapy applications.  
-The primary focus is to automate the delineation of anatomical structures—such as organs-at-risk (OARs) and tumor volumes—on CT and MRI, enabling faster and more consistent treatment planning.
+![Main Figure](assets/figure_main.png)
+
+> **Figure 1.** Conceptual comparison between fixed-epoch personalization and uncertainty-guided test-time optimization (TTO). The proposed method selects the personalization stopping point by minimizing predictive uncertainty, without access to test labels.
 
 ---
 
-### 🧭 Objectives
+## 📄 Publication
 
-- Accelerate segmentation workflows in radiation oncology
-- Support high-fidelity auto-contouring with transformer-based models
-- Enable uncertainty-aware decision-making in clinical scenarios
-- Facilitate test-time model adaptation to individual patient anatomy
+**Chun J**, Castelo A, Woodland MK, et al.  
+**Uncertainty-guided test-time optimization for personalizing segmentation models in longitudinal medical imaging.**  
+*Medical Physics*. 2026;53:e70206.  
+https://doi.org/10.1002/mp.70206
 
-### 🧩 Key Features
+---
 
-- 3D Transformer-based segmentation models (e.g., Swin UNETR)
-- Monte Carlo Dropout and Ensemble Uncertainty Estimation
-- Modularized PyTorch-based training and inference pipelines
-- Test-time adaptation strategies for personalized AI
-- Reproducible evaluation on public and internal datasets (e.g., HNTS-MRG 2024, internal pancreas/cyst)
+## 🧪 Dataset Used for Example (Open)
 
-### ⚠️ Notes
+Examples in this repository use the **Head-and-Neck Tumor (HNT) MRI dataset**, which is publicly available.
+https://hntsmrg24.grand-challenge.org/dataset/
 
-- This project is under active development and intended for internal research use only.
+Dataset characteristics:
+- HNTS-MRG 2024 Challenge
+- T2-weighted MRI
+- GTVp and GTVn combined into a single foreground class
+- Longitudinal pairs: pre-RT → mid-RT
 
-<br/>
-<br/>  
+Private pancreas and liver CT datasets used in the paper are **not distributed**.
 
-# ⚙️ 2. Environment & Dependencies
+---
 
-This project is based on a PyTorch Docker environment and built for GPU-enabled systems with CUDA 12.1.  
-The base image used is:
+## ⚙️ Environment
+
+All experiments were conducted using:
 
 ```
 pytorch/pytorch:2.1.1-cuda12.1-cudnn8-devel
 ```
 
-All core dependencies are installed via `monai_requirements.txt`.
+Core dependency:
+- `monai==1.4`
+
+All Python dependencies are listed in `requirements.txt`.
 
 ---
 
-### 🐳 Docker-based Setup (Recommended)
-
-Use the following Dockerfile snippet to replicate the development environment:
-
-```Dockerfile
-# Base image
-FROM pytorch/pytorch:2.1.1-cuda12.1-cudnn8-devel
-
-# Working directory (YOUR DIRECTORY)
-WORKDIR /Morfeus/JChun
-
-# Set non-interactive shell mode
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Copy requirements
-COPY monai_requirements.txt /Morfeus/JChun
-
-# Upgrade pip and install dependencies
-RUN python3 -m pip install --no-cache-dir --upgrade --pre pip
-RUN python3 -m pip install --no-cache-dir -r monai_requirements.txt
-```
-
-### 📦 Core Dependencies (via `monai_requirements.txt`)
-
-| Package            | Version Range   | Purpose                                  |
-|--------------------|------------------|-------------------------------------------|
-| `monai[all]`       | 1.4              | Medical imaging framework                |
-
----
-
-### ⚠️ Notes
-
-- CUDA 12.1 with cuDNN 8 is required for full GPU acceleration.
-- Avoid mixing PyTorch or MONAI versions not explicitly compatible with CUDA 12.1.
-
-<br/>
-<br/>  
-
-# 🏗 3. Directory Structure
-
+## 🗂 Directory Structure
 
 ```
 .
-├── ! history/                          # Auto-generated log and output 
-├── 3d_segmentation/                    # Core training/inference scripts
+├── 3d_segmentation/
 │   ├── swin_unetr_btcv_segmentation_3d_singleCh.py
 │   ├── swin_unetr_btcv_segmentation_3d_singleCh_test.py
-│   └── swin_unetr_btcv_segmentation_3d_singleCh.ipynb    # Jupyter development notebook
-├── requirements.txt                    # Dependency list for pip
-├── Dockerfile_uncertainty_tto          # Dockerfile (based on PyTorch 2.1.1 + CUDA 12.1)
-└── README.md                           
-directory per experiment
-
+│   └── notebook_tto_one_cycle_analysis.ipynb
+├── datasets/
+├── requirements.txt
+├── Dockerfile_uncertainty_tto
+└── README.md
 ```
 
-### 🔖 Notes
-
-- `3d_segmentation/`: Contains task-specific scripts for training and inference (single channel segmentation)
-- `swin_unetr_btcv_segmentation_3d_singleCh.ipynb`: Used for quick prototyping and debugging
-- `Dockerfile_uncertainty_tto`: Builds the MONAI runtime environment on top of `pytorch:2.1.1-cuda12.1-cudnn8-devel`
-
 ---
-### 🧪 Dataset References 
 
-This project currently supports experiments on the following datasets:
+## 📓 One-Cycle Notebook (Baseline → Test)
 
-- **HNT MR GTVs**  
-  - JSON: `dataset_HNT_fold0.json`  
-  - Foreground class: `1`, `2`
-  - Additional: `--intensity_range 0.0 255.0`  
+The notebook below demonstrates a **single end-to-end cycle** on the HNT dataset:
+1) baseline training  
+2) baseline testing (inference) with **MCD-based uncertainty**  
 
+Notebook:
+- `3d_segmentation/notebook_tto_one_cycle_analysis.ipynb`
 
-<br/>
-<br/>  
-
-# 🧠 4. Model Summary
-
-The core model architecture in this project is based on **Swin UNETR**, a 3D transformer-based network for medical image segmentation.  
-It combines the hierarchical attention mechanism of Swin Transformers with the encoder-decoder structure of U-Net.
+Notes:
+- This notebook is for **illustration and analysis**. The official reproduction path is via the CLI scripts.
+- Only **MCD** is demonstrated in the notebook.
+- For **DE**, follow the paper setup: run inference with dropout disabled and aggregate **5 predictions** (one prediction per model), then compute the voxel-wise standard deviation and average it to obtain a scalar uncertainty score.
 
 ---
 
-### 🧬 Model Architecture
+## 🚀 CLI Workflow (HNT Example): Train → Test → Personalization
 
-- **Backbone**: Swin Transformer (3D patch embedding + window attention)
-- **Decoder**: U-Net-style upsampling path with skip connections
-- **Input**: 1-channel 3D CT or MRI images
-- **Output**: Binary or multi-label segmentation masks (`channels_out=2` or more)
-- **Dropout**: Optional MC Dropout for uncertainty estimation (`--prob_drop`)
-- **Implementation**: Based on MONAI `SwinUNETR` and customized pipeline
+This section provides a minimal command-line workflow for reproducing the HNT experiments.
 
-> 🔎 For detailed code, see:  
-> `3d_segmentation/swin_unetr_btcv_segmentation_3d_singleCh.py`  
-> `3d_segmentation/swin_unetr_btcv_segmentation_3d_singleCh_test.py`
-
----
-
-### 🧪 Loss & Metrics
-
-- **Loss Function**:  
-  - `DiceCELoss`: Combines Dice Loss (structure-aware) and Cross Entropy Loss (class confidence)
-- **Metrics Used**:  
-  - Dice Similarity Coefficient (DSC)  
-  - 95% Hausdorff Distance (HD95)  
-  - Mean Surface Distance (MSD)
-
----
-
-### 🧭 Supported Modes
-
-| Mode              | Description                                                                 |
-|-------------------|-----------------------------------------------------------------------------|
-| `train`           | Standard training mode with caching, augmentation, and checkpoint saving     |
-| `test`            | Evaluation on test set with optional softmax, dropout, and postprocessing    |
-| `personalization` | Test-time fine-tuning using uncertainty-guided selection or fixed iterations |
-
-> 🧠 Personalization mode is configured using dropout-based uncertainty and supports case-wise adaptation.
-
----
-
-### 📈 Performance Example (HNT, Fold 0)
-
-| Model Type         | Mean DSC (Foreground Classes) |
-|--------------------|-------------------------------|
-| Baseline Model     | 0.XXX                         |
-| Personalized Model | 0.XXX                         |
-
-> 🧪 Dataset: `HNT MR GTVs`  
-> `channels_out=2`, `fg_class=1 2`
-
----
-
-### 🧠 Notes
-
-- The model supports **foreground class masking** using `--fg_class`  
-  → This allows combining multiple semantic labels (e.g., `1`, `2`) into a **single binary foreground mask** for training.  
-  → For example, in a multi-class dataset where `label==1` is cyst and `label==2` is duct, passing `--fg_class 1 2` will treat both as foreground (`1`) and all others as background (`0`).
-- `--channels_out` defines the number of output classes. For binary segmentation (foreground vs. background), set `channels_out=2`.
-- `--prob_drop` defines dropout probability used in both training and test-time inference for uncertainty-aware personalization.
-
-<br/>
-<br/>  
-
-# 🚀 5. How to Run
-
-> 📓 For a quick overview with runnable examples, see the notebook:  
-> `3d_segmentation/swin_unetr_btcv_segmentation_3d_singleCh.ipynb`  
-> It demonstrates the full pipeline including argument setup, visualization, and output structure.
-
-This project supports three execution modes: `train`, `test`, and `personalization`.  
-All are configured via CLI arguments and launched from Python scripts inside the `3d_segmentation/` directory.
-
-
----
-
-### 🧪 Training
+### 1) Baseline Training (Fold JSON)
 
 ```bash
 python 3d_segmentation/swin_unetr_btcv_segmentation_3d_singleCh.py \
-  -exp_name '<EXP_NAME>' \
-  -json_dir './data/Dataset001_HNT/dataset_HNT_fold0.json' \
-  -size_cache_train 130 \
-  -size_cache_valid 35 \
+  -exp_name '<EXP_NAME_BASELINE>' \
+  -json_dir '<PATH_TO_DATASET_JSON>/<JSON_NAME>.json' \
+  -size_cache_train 125 \
+  -size_cache_valid 25 \
   -max_iterations 30000 \
   -channels_out 2 \
   -num_samples 10 \
+  -intensity_range 0.0 255.0 \
   -fg_class 1 2 \
   -prob_drop 0.05
 ```
 
-> Logs, metrics, and experiment backups will be saved under:  
-> `! history/<EXP_NAME>/`  
-> with results stored in `results/`, and script/yaml backups timestamped.
-
 ---
 
-### 🔎 Inference (Testing)
+### 2) Baseline Testing (Inference)
 
 ```bash
 python 3d_segmentation/swin_unetr_btcv_segmentation_3d_singleCh_test.py \
-  -exp_name '<EXP_NAME>' \
-  -json_dir './data/Dataset001_HNT/Dataset001_HNT/dataset_HNT_fold0.json' \
+  -exp_name '<EXP_NAME_BASELINE>' \
+  -json_dir '<PATH_TO_DATASET_JSON>/<JSON_NAME>.json' \
   -channels_out 2 \
-  -fg_class 1 2 \
   -prob_drop 0.05 \
-  -postfix 'do005'
+  -intensity_range 0.0 255.0 \
+  -fg_class 1 2 \
+  -postfix '<POSTFIX>'
 ```
 
-> Prediction NIfTI files, log output, and per-case DSC results will be saved in:  
-> `! history/<EXP_NAME>/results_<postfix>/`
+**Notes**
+- Keep `-prob_drop` enabled to obtain **MCD-based uncertainty** during inference.
 
 ---
 
-### 🧠 Personalization
+### 3) Patient-Specific Personalization (Fine-tuning on Prior Scan)
 
-This mode performs patient-specific fine-tuning at test-time using a small number of training samples (e.g., `1`)  
-and Monte Carlo Dropout-based uncertainty estimation.
+Personalization starts from the **pre-trained baseline checkpoint** and fine-tunes on a **single patient’s prior (primary) scan + label**.
+The follow-up scan is **never** used for gradient updates.
 
 ```bash
 python 3d_segmentation/swin_unetr_btcv_segmentation_3d_singleCh.py \
-  --exp_name '<EXP_NAME>' \
-  --json_dir './data/Dataset001_HNT/dataset_HNT_overfit0.json' \
-  --size_cache_train 1 \
-  --size_cache_valid 1 \
-  --max_iterations 100 \
-  --is_overfit 1 \
-  --channels_out 2 \
-  --prob_drop 0.05 \
-  --postfix 'do005' \
-  --eval_num 1 \
-  --num_samples 10
+  -exp_name '<EXP_NAME_BASELINE>' \
+  -json_dir '<PATH_TO_DATASET_JSON>/<JSON_NAME_PERSONALIZATION>.json' \
+  -size_cache_train 1 \
+  -size_cache_valid 1 \
+  -max_iterations 100 \
+  --personalize \
+  -channels_out 2 \
+  -prob_drop 0.05 \
+  -postfix '<POSTFIX>' \
+  -eval_num 1 \
+  -fg_class 1 2 \
+  -intensity_range 0.0 255.0 \
+  -num_samples 10
 ```
 
-> Personalized model weights and metrics will be saved under:  
-> `! history/<EXP_NAME>/results_personalized_<postfix>/`
-
-> 🧪 Personalization and inference jobs should use `--postfix` to avoid overwriting results.
+**Notes**
+- `<JSON_NAME_PERSONALIZATION>.json` should contain a single patient prior case used for fine-tuning.
+- The current setup runs all 100 iterations and selects the optimal checkpoint using uncertainty minimization.
 
 ---
 
-<br/>
-<br/>  
+### ⏱ Practical Tip: Early Stopping for Real-World Use
 
-# 🔍 6. Evaluation & Logging
+While this repository evaluates all 100 personalization iterations and selects the optimal checkpoint retrospectively,
+a more time-efficient deployment can adopt an **early stopping strategy** based on the **uncertainty curve trend**,
+such as slope-based or plateau-based criteria.
 
-- All logs, metrics, and outputs are saved under:  
-  `! history/<EXP_NAME>/`
-- Training logs are redirected to `output.log`, and model checkpoints are stored in `results*/`
-- Metric CSVs include:
-  - `epoch_loss_values.csv`
-  - `metric_values.csv` (DSC, HD95, MSD)
-  - `validation_dsc.csv` (per-case DSC)
-- Personalized runs are saved in:  
-  `results_personalized_<postfix>/`
-- Monte Carlo uncertainty values (`std_values`) are recorded for testing & each adaptation step.
+---
 
-<br/>
-<br/>  
+## 📜 License
 
-# ✅ 7. Contribution Checklist
+This repository builds upon examples and code adapted from the
+[MONAI Tutorials](https://github.com/Project-MONAI/tutorials) repository,
+which is licensed under the **Apache License 2.0**.
 
-- [✅] Adapted MONAI's official tutorial code to suit this project's personalization pipeline.
-- [🛠️] Wrote a companion `.ipynb` file to showcase typical usage and output interpretation. *(In progress)*
-- [❌] Update with publication link (e.g., arXiv or journal page) once available.
+---
 
-<br/>
-<br/>  
+## 📚 Citation
+
+If you use this work, please cite:
+
+```bibtex
+@article{Chun2026TTO,
+  title   = {Uncertainty-guided test-time optimization for personalizing segmentation models in longitudinal medical imaging},
+  author  = {Chun, Jaehee and Castelo, Austin and Woodland, McKell and others},
+  journal = {Medical Physics},
+  year    = {2026},
+  volume  = {53},
+  pages   = {e70206},
+  doi     = {10.1002/mp.70206}
+}
